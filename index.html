@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Minimalistischer Taschenrechner</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --panel: #ffffff;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --danger: #b91c1c;
+      --text: #111827;
+      --muted: #6b7280;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: grid;
+      place-content: center;
+      padding: 2rem 1rem;
+    }
+    h1 { margin: 0 0 1.25rem; font-size: clamp(1.4rem,3vw,2rem); text-align: center; font-weight: 600; }
+    .calc {
+      width: min(360px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.25rem 1.5rem;
+      box-shadow: 0 4px 16px -6px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    }
+    .inputs { display: grid; gap: .75rem; margin-bottom: 1rem; }
+    label { font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    input[type=number] {
+      width: 100%;
+      padding: .65rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fcfcfd;
+      font-size: 1rem;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=number]:focus { outline: 2px solid transparent; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 35%, transparent); }
+    .row { display: flex; gap: .75rem; }
+    .row > div { flex: 1; }
+    .ops {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: .5rem;
+      margin-bottom: 1rem;
+    }
+    button.op {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #f1f5f9;
+      padding: .75rem 0;
+      font-size: 1.1rem;
+      cursor: pointer;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    button.op:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button.op:hover { background: #e2e8f0; }
+    button.op.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .result {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      padding: .9rem .95rem;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      min-height: 2.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .result small { font-weight: 500; color: var(--muted); font-size: .65rem; letter-spacing: .06em; }
+    .err { color: var(--danger); font-weight: 600; }
+    footer { margin-top: 1.25rem; text-align: center; font-size: .7rem; color: var(--muted); }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f172a; --panel:#1e293b; --border:#334155; --text:#f1f5f9; --muted:#94a3b8; }
+      input[type=number] { background:#1e2532; }
+      button.op { background:#24324a; border-color:#334155; }
+      button.op:hover { background:#2f405a; }
+      .result { background:#24324a; }
+    }
+  </style>
+</head>
+<body>
+  <main class="calc" aria-labelledby="heading">
+    <h1 id="heading">Taschenrechner</h1>
+    <form id="calcForm" autocomplete="off" onsubmit="event.preventDefault();">
+      <div class="inputs">
+        <div class="row">
+          <div>
+            <label for="a">Zahl A</label>
+            <input id="a" name="a" type="number" step="any" placeholder="0" required />
+          </div>
+          <div>
+            <label for="b">Zahl B</label>
+            <input id="b" name="b" type="number" step="any" placeholder="0" required />
+          </div>
+        </div>
+      </div>
+      <div class="ops" role="group" aria-label="Operationen">
+        <button type="button" class="op" data-op="add" aria-label="Addieren">+</button>
+        <button type="button" class="op" data-op="sub" aria-label="Subtrahieren">−</button>
+        <button type="button" class="op" data-op="mul" aria-label="Multiplizieren">×</button>
+        <button type="button" class="op" data-op="div" aria-label="Dividieren">÷</button>
+      </div>
+      <div class="result" aria-live="polite" id="resultBox">
+        <span id="resultValue">Ergebnis: <small>—</small></span>
+        <small id="opName"></small>
+      </div>
+    </form>
+    <footer>Minimalistischer Web‑Taschenrechner • Kein Tracking, kein Framework.</footer>
+  </main>
+
+  <script>
+    (function() {
+      const inputs = { a: document.getElementById('a'), b: document.getElementById('b') };
+      const buttons = Array.from(document.querySelectorAll('button.op'));
+      const resultValue = document.getElementById('resultValue');
+      const opName = document.getElementById('opName');
+      let currentOp = null;
+
+      const opMap = {
+        add: { label: 'Addition', fn: (x, y) => x + y, symbol: '+' },
+        sub: { label: 'Subtraktion', fn: (x, y) => x - y, symbol: '−' },
+        mul: { label: 'Multiplikation', fn: (x, y) => x * y, symbol: '×' },
+        div: { label: 'Division', fn: (x, y) => y === 0 ? NaN : x / y, symbol: '÷' }
+      };
+
+      function parse(val) {
+        // Convert empty string gracefully to NaN -> required prevents empties but keep safe.
+        if (val === '' || val === null) return NaN; // fallback
+        return Number(val);
+      }
+
+      function format(num) {
+        if (Number.isNaN(num)) return '<span class="err">Ungültig</span>';
+        if (!Number.isFinite(num)) return '<span class="err">∞</span>';
+        // Avoid trailing .0 for integers
+        const abs = Math.abs(num);
+        // For tiny/huge numbers, use toExponential
+        if ((abs !== 0 && (abs < 1e-6 || abs >= 1e9))) return num.toExponential(6);
+        const s = num.toString();
+        if (s.length <= 12) return s; // short enough
+        return num.toPrecision(12).replace(/\.0+$/,'');
+      }
+
+      function compute() {
+        if (!currentOp) return;
+        const a = parse(inputs.a.value);
+        const b = parse(inputs.b.value);
+        const { fn, label, symbol } = opMap[currentOp];
+        const res = fn(a, b);
+        const out = format(res);
+        resultValue.innerHTML = `${out}`;
+        opName.textContent = label ? `${label} (${symbol})` : '';
+      }
+
+      function setActive(op) {
+        currentOp = op;
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.op === op));
+        compute();
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => setActive(btn.dataset.op));
+      });
+
+      // Recompute on input changes
+      Object.values(inputs).forEach(inp => inp.addEventListener('input', compute));
+
+      // Default select addition
+      setActive('add');
+
+      // Keyboard shortcuts: + - * / cycle operation
+      document.addEventListener('keydown', (e) => {
+        if (['+','-','*','/'].includes(e.key)) {
+          e.preventDefault();
+          const mapKey = { '+':'add', '-':'sub', '*':'mul', '/':'div' };
+            setActive(mapKey[e.key]);
+        }
+        if (e.key === 'Enter') {
+          compute();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
